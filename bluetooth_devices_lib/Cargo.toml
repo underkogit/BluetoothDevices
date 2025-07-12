@@ -1,0 +1,13 @@
+[package]
+name = "bluetooth_devices_lib"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+windows = { version = "0.61.3", features = [
+    "Devices_Bluetooth", "Devices_Enumeration",
+    "Devices_Bluetooth_Advertisement", "Foundation",
+    "Win32_Foundation", "Devices_Bluetooth_Rfcomm",
+    "Devices_Radios" , "Foundation" , "Foundation_Collections"] }
+tokio = { version = "1.43", features = ["full"] }
+uuid = { version = "1.17.0", features = ["v4"] }

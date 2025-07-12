@@ -1,0 +1,6 @@
+[workspace]
+members = [
+    "bluetooth_devices_lib",
+    "bluetooth_devices_console"
+]
+resolver = "2"
