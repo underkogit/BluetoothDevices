@@ -1,3 +1,5 @@
 /target
 .vs
 .idea
+.direnv
+/result

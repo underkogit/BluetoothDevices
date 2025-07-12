@@ -10,8 +10,9 @@ use std::{
     sync::{Arc, Mutex},
     time::Duration,
 };
-
+use std::sync::LockResult;
 use uuid::Uuid;
+use windows::Devices::Enumeration::{DeviceClass, DeviceInformationCollection};
 use windows::Devices::Radios::RadioState;
 
 #[derive(Debug, Clone)]
@@ -34,9 +35,6 @@ impl BluetoothManager {
 
         }
     }
-
-
-
 
     pub fn get_bluetooth_adapter(&mut self) -> Result<BluetoothAdapter> {
         let async_op = BluetoothAdapter::GetDefaultAsync()?;
@@ -81,14 +79,53 @@ impl BluetoothManager {
         }
     }
 
-    pub async fn test() -> bool {
+    pub fn test() -> bool {
         false
     }
-    
-    
-    pub fn scan_devices( ) -> Result<Vec<String>> {
+
+    // pub async fn get_devices_all(&mut self) -> Result<DeviceInformationCollection> {
+    //     // Получаем список всех устройств
+    //     let list_result = DeviceInformation::FindAllAsyncDeviceClass(DeviceClass::AudioRender);
+    // 
+    //     // Обрабатываем результат
+    //     match list_result {
+    //         Ok(devices) => {
+    //             let mut found_devices:Vec<DeviceInformation> = Vec::new();
+    //             let devices = devices.get().unwrap();
+    // 
+    //             for device in devices {
+    //                 // Предположим, что у устройства есть метод Name() и Id()
+    //                 if let (Ok(name), Ok(id)) = (device.Name(), device.Id()) {
+    //                     // let _name = name.to_string_lossy();
+    //                     // let _id = id.to_string_lossy();
+    //                     // let device_str = format!("{} ({})",_name, _id);
+    // 
+    //                     
+    // 
+    //                     found_devices.push(device_str);
+    //                 }
+    //             }
+    // 
+    //             Ok(devices) // Возвращаем список найденных устройств
+    //         },
+    //         Err(e) => {
+    //             // Обработка ошибки
+    //             eprintln!("Ошибка при поиске устройств: {:?}", e);
+    //             Err(e) // Возвращаем ошибку
+    //         }
+    //     }
+    // }
+
+
+    pub async fn get_scan_devices(&mut self, sleep:u64) -> Result<Vec<String>> {
         let found_devices = Arc::new(Mutex::new(Vec::new()));
         let selector = BluetoothDevice::GetDeviceSelector()?;
+
+
+
+
+
+        //println!("{}" , selector.to_string_lossy());
         let watcher = DeviceInformation::CreateWatcherAqsFilter(&selector)?;
 
         // Store the token for cleanup
@@ -99,12 +136,28 @@ impl BluetoothManager {
             let devices = Arc::clone(&found_devices);
             TypedEventHandler::<DeviceWatcher, DeviceInformation>::new(
                 move |_sender, info_ref| {
-                    let info = info_ref.as_ref(); // Convert Ref to reference
-                    if let (Ok(name), Ok(id)) = (info.expect("safas1").Name(), info.expect("safas2").Id()) {
+                    let info = info_ref.as_ref().unwrap(); // Convert Ref to reference
+
+                    if let
+                        (Ok(name), Ok(id) , Ok(is_enabled) , Ok(is_default)) =
+                        (info.Name(), info.Id() , info.IsEnabled() , info.IsDefault()) {
+
+                        let device_id = id; // Convert ID to string
+
+
+
+                         let ddevice = windows::Devices::Bluetooth::BluetoothDeviceId::FromId(&"Bluetooth#Bluetooth8c:68:8b:e0:6b:e2-55:bf:9e:4f:b8:f0".into())?;
+                        // println!("{:?}", ddevice);
+
+                       // let ddevice = windows::Devices::Bluetooth::   BluetoothDeviceId::FromId(&(info.Name().unwrap()));
+
+                        //windows::Devices::Bluetooth::BluetoothConnectionStatus
                         let device_str = format!(
-                            "{} ({})",
+                            "{} [{}][{}] ({})",
                             name.to_string_lossy(),
-                            id.to_string_lossy()
+                            is_enabled,
+                            is_default,
+                            device_id.to_string_lossy()
                         );
                         devices.lock().unwrap().push(device_str);
                     }
@@ -117,21 +170,18 @@ impl BluetoothManager {
         added_token = Some(watcher.Added(&added_handler)?);
         watcher.Start()?;
 
-
-        tokio::time::sleep(Duration::from_secs(10));
-
+        // Wait for a while to discover devices
+        tokio::time::sleep(Duration::from_secs(sleep)).await;
 
         watcher.Stop()?;
         if let Some(token) = added_token {
             watcher.RemoveAdded(token)?;
         }
 
-        // Extract the discovered devices
-        let devices = Arc::try_unwrap(found_devices)
-            .expect("Failed to unwrap Arc")
-            .into_inner()
-            .expect("Failed to get inner vector from Mutex");
+        // Получите вектор устройств
+        let devices = found_devices.lock().unwrap(); // Исправлено: используйте `unwrap` для получения доступа к вектору
 
-        Ok(devices)
+        // Возвращаем вектор устройств
+        Ok(devices.clone()) // Клонируем вектор, чтобы вернуть его
     }
 }
